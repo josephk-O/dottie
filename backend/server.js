@@ -51,12 +51,16 @@ const corsOptions = {
   origin: isDevelopment 
     ? ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://127.0.0.1:5173'] 
     : ['https://dottie-health.vercel.app', 'https://dottie-lmcreans-projects.vercel.app', 'https://dottie-oi1fayiad-lmcreans-projects.vercel.app'],
-  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   credentials: true,
   optionsSuccessStatus: 204,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
 app.use(cors(corsOptions));
+
+// Enable pre-flight for all routes
+app.options('*', cors(corsOptions));
 
 // Routes
 app.use('/api', routes);
@@ -80,7 +84,8 @@ app.use((err, req, res, next) => {
 // Start the server if we're running directly
 const isMainModule = import.meta.url.endsWith(process.argv[1]);
 
-if (isMainModule || process.env.NODE_ENV === 'development') {
+// Force listen in development and when run directly
+if (isMainModule || process.env.NODE_ENV === 'development' || true) {
   // Start server
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);

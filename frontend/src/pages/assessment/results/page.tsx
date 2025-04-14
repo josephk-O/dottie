@@ -198,6 +198,22 @@ export default function ResultsPage() {
   const [painLevel, setPainLevel] = useState<string>("");
   const [symptoms, setSymptoms] = useState<string[]>([]);
 
+  // Helper function to normalize string values for more reliable comparisons
+  const normalizeValue = (value: string | null): string => {
+    if (!value) return "";
+    
+    const normalized = value.trim().toLowerCase();
+    return normalized;
+  };
+
+  // Helper function to check if a string contains any of the given keywords
+  const containsAny = (value: string | null, keywords: string[]): boolean => {
+    if (!value) return false;
+    
+    const normalized = normalizeValue(value);
+    return keywords.some(keyword => normalized.includes(keyword));
+  };
+
   useEffect(() => {
     // Get data from session storage
     const storedAge = sessionStorage.getItem("age");
@@ -206,6 +222,7 @@ export default function ResultsPage() {
     const storedFlowLevel = sessionStorage.getItem("flowLevel");
     const storedPainLevel = sessionStorage.getItem("painLevel");
     const storedSymptoms = sessionStorage.getItem("symptoms");
+    const storedCyclePredictable = sessionStorage.getItem("cyclePredictable");
 
     console.log("Stored values:", {
       age: storedAge,
@@ -214,6 +231,7 @@ export default function ResultsPage() {
       flowLevel: storedFlowLevel,
       painLevel: storedPainLevel,
       symptoms: storedSymptoms,
+      cyclePredictable: storedCyclePredictable,
     });
 
     if (storedAge) setAge(storedAge);
@@ -230,43 +248,109 @@ export default function ResultsPage() {
     }
 
     // Determine the pattern based on LogicTree logic
-    let determinedPattern: MenstrualPattern = "developing";
+    // Following the exact decision tree from LogicTree.md
+    let determinedPattern: MenstrualPattern;
+    const decisionPath = [];
 
-    // Check for irregular timing (O1)
-    if (
-      storedCycleLength === "irregular" ||
-      storedCycleLength === "less-than-21" ||
-      storedCycleLength === "36-40"
-    ) {
-      determinedPattern = "irregular";
-    }
-    // Check for heavy flow (O2)
-    else if (
-      storedPeriodDuration === "8-plus" ||
-      storedFlowLevel === "heavy"
-    ) {
+    // Q1: Is cycle length between 21-45 days?
+    const isCycleLengthNormal = !(
+      containsAny(storedCycleLength, ["irregular"]) ||
+      containsAny(storedCycleLength, ["less than 21", "<21"]) ||
+      containsAny(storedCycleLength, ["more than 45", ">45", "45+"])
+    );
+    decisionPath.push(`Q1: Cycle length normal? ${isCycleLengthNormal}`);
+
+// Check for irregular timing (O1)
+const isCycleLengthNormal = !(
+  storedCycleLength === "irregular" ||
+  storedCycleLength === "less-than-21" ||
+  storedCycleLength === "36-40" ||
+  containsAny(storedCycleLength, ["irregular", "less than 21", "<21", "36-40", "more than 35", ">35"])
+);
+decisionPath.push(`Q1: Cycle length normal? ${isCycleLengthNormal}`);
+
+if (!isCycleLengthNormal) {
+  // O1: Irregular Timing Pattern
+  determinedPattern = "irregular";
+  decisionPath.push(`O1: Assigning pattern = "irregular"`);
+} else {
+  // Q2: Does period last between 2-7 days?
+  const isPeriodDurationNormal = !(
+    storedPeriodDuration === "8-plus" ||
+    containsAny(storedPeriodDuration, ["more than 7", ">7", "8+", "8 days", "8-plus"])
+  );
+  decisionPath.push(`Q2: Period duration normal? ${isPeriodDurationNormal}`);
+
+  if (!isPeriodDurationNormal) {
+    // O2: Heavy or Prolonged Flow Pattern
+    determinedPattern = "heavy";
+    decisionPath.push(`O2: Assigning pattern = "heavy" (duration)`);
+  } else {
+    // Q3: Is flow light to moderate?
+    const isFlowNormal = !(
+      storedFlowLevel === "heavy" ||
+      containsAny(storedFlowLevel, ["heavy", "very heavy"])
+    );
+    decisionPath.push(`Q3: Flow normal? ${isFlowNormal}`);
+
+    if (!isFlowNormal) {
+      // O2: Heavy or Prolonged Flow Pattern
       determinedPattern = "heavy";
-    }
-    // Check for pain-predominant (O3)
-    else if (storedPainLevel === "severe") {
-      determinedPattern = "pain";
-    }
-    // Check for regular cycles (O4)
-    else if (
-      storedCycleLength &&
-      storedCycleLength.includes("days") &&
-      storedPeriodDuration &&
-      storedPeriodDuration.includes("days") &&
-      storedFlowLevel !== "Heavy" &&
-      storedPainLevel !== "Severe"
-    ) {
-      determinedPattern = "regular";
-    }
-    // Default to developing pattern (O5) - ! UPDATE: redundant 
-    // else if (storedAge ?? storedAge.includes("13-17")) {
-    //   determinedPattern = "developing";
-    // }
+      decisionPath.push(`O2: Assigning pattern = "heavy" (flow)`);
+    } else {
+      // Q4: Is menstrual pain none to moderate?
+      const isPainNormal = !(
+        storedPainLevel === "severe" ||
+        containsAny(storedPainLevel, ["severe", "debilitating"])
+      );
+      decisionPath.push(`Q4: Pain normal? ${isPainNormal}`);
 
+      if (!isPainNormal) {
+        // O3: Pain-Predominant Pattern
+        determinedPattern = "pain";
+        decisionPath.push(`O3: Assigning pattern = "pain"`);
+      } else {
+        // Q5: Check if we have regular pattern matching conditions from version 1
+        const matchesRegularPatternV1 = (
+          storedCycleLength &&
+          storedCycleLength.includes("days") &&
+          storedPeriodDuration &&
+          storedPeriodDuration.includes("days") &&
+          storedFlowLevel !== "Heavy" &&
+          storedPainLevel !== "Severe"
+        );
+        
+        // Q5: Has cycle been predictable for at least 3 months?
+        decisionPath.push(`Q5: Checking cycle predictability...`);
+        if (containsAny(storedCyclePredictable, ["no", "false"])) {
+          // O5: Developing Pattern - cycles not predictable
+          determinedPattern = "developing";
+          decisionPath.push(`O5: Assigning pattern = "developing" (explicitly not predictable)`);
+        } else if (containsAny(storedCyclePredictable, ["yes", "true"]) || matchesRegularPatternV1) {
+          // O4: Regular Menstrual Cycles - cycles are predictable or match v1 conditions
+          determinedPattern = "regular";
+          decisionPath.push(`O4: Assigning pattern = "regular" (explicitly predictable or matches v1 criteria)`);
+        } else {
+          // We don't have explicit predictability data, so infer based on age
+          decisionPath.push(`No explicit predictability data, inferring from age: ${storedAge}`);
+          // If age is adolescent (12-17), assume developing, otherwise assume regular
+          if (storedAge && containsAny(storedAge, ["12-14", "15-17", "13-17", "12", "13", "14", "15", "16", "17", "teen", "adolescent"])) {
+            // O5: Developing Pattern
+            determinedPattern = "developing";
+            decisionPath.push(`O5: Assigning pattern = "developing" (based on adolescent age)`);
+          } else {
+            // O4: Regular Menstrual Cycles
+            determinedPattern = "regular";
+            decisionPath.push(`O4: Assigning pattern = "regular" (default for non-adolescent)`);
+          }
+        }
+      }
+    }
+  }
+}
+
+    console.log("Decision path:", decisionPath);
+    console.log("Determined pattern:", determinedPattern);
     setPattern(determinedPattern);
   }, []);
 
