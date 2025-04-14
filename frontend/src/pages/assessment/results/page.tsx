@@ -234,22 +234,21 @@ export default function ResultsPage() {
 
     // Check for irregular timing (O1)
     if (
-      storedCycleLength === "Irregular" ||
-      storedCycleLength === "Less than 21 days" ||
-      storedCycleLength === "More than 45 days"
+      storedCycleLength === "irregular" ||
+      storedCycleLength === "less-than-21" ||
+      storedCycleLength === "36-40"
     ) {
       determinedPattern = "irregular";
     }
     // Check for heavy flow (O2)
     else if (
-      storedPeriodDuration === "More than 7 days" ||
-      storedPeriodDuration === "8+ days" ||
-      storedFlowLevel === "Heavy"
+      storedPeriodDuration === "8-plus" ||
+      storedFlowLevel === "heavy"
     ) {
       determinedPattern = "heavy";
     }
     // Check for pain-predominant (O3)
-    else if (storedPainLevel === "Severe") {
+    else if (storedPainLevel === "severe") {
       determinedPattern = "pain";
     }
     // Check for regular cycles (O4)
@@ -263,10 +262,10 @@ export default function ResultsPage() {
     ) {
       determinedPattern = "regular";
     }
-    // Default to developing pattern (O5)
-    else if (storedAge && storedAge.includes("13-17")) {
-      determinedPattern = "developing";
-    }
+    // Default to developing pattern (O5) - ! UPDATE: redundant 
+    // else if (storedAge ?? storedAge.includes("13-17")) {
+    //   determinedPattern = "developing";
+    // }
 
     setPattern(determinedPattern);
   }, []);
@@ -367,7 +366,7 @@ export default function ResultsPage() {
       const assessment: Omit<Assessment, "id"> = {
         userId: "", // This will be set by the backend
         createdAt: new Date().toISOString(),
-        assessmentData: {
+        assessment_data: {
           date: new Date().toISOString(),
           pattern,
           age,
